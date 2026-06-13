@@ -1,6 +1,3 @@
-<div align="center">
-  <img src="شعار/شعار_المشروع.png" alt="شعار اللغة البرمجية العربية" width="200">
-
 
 
 # ArabOS-Kernel (شاهين) 🦅
