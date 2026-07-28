@@ -1,25 +1,30 @@
 #include <stdint.h>
-#include "محرك_المقاطعات/بوابة_المقاطعات.h"
-#include "محرك_المقاطعات/أدارة_تنظيم_المقاطعات/مكتبة_واجهة_الإدخال_والإخراج.h"
-#include "القلب/محركات_الخدمات/محرك_الفيديو/بوابة_الفيديو.h"
-#include "القلب/مكتبة_المحركات/مكتبة_معالجة_النصوص.h"
 #include "القلب/الجوهرة.h"
 #include "محرك_الذاكرة/بوابة_الذاكرة.h"
-#include "محرك_العمليات/بوابة_العمليات.h"
 #include "محرك_الجدولة/بوابة_الجدولة.h"
-#include "القلب/محركات_الخدمات/محرك_التطبيقات/قيم_الملف.h"
-#include "القلب/محركات_الخدمات/محرك_التطبيقات/محرك_التطبيقات.h"
-#include "محرك_المقاطعات/الأداره_المتقدمة_للمقاطعات/مُتحكم_المقاطعات.h"
-#include "محرك_المقاطعات/الأداره_المتقدمة_للمقاطعات/مُتحكم_وموجه_المقاطعات.h"
+#include "محرك_العمليات/بوابة_العمليات.h"
+#include "محرك_المقاطعات/بوابة_المقاطعات.h"
 #include "محرك_الجدولة/مُدير_الأحداث/مُدير_الأحداث.h"
+#include "القلب/مكتبة_المحركات/مكتبة_معالجة_النصوص.h"
 #include "محرك_تواصل_العمليات/محرك_تواصل_العمليات.h"
-#include "القلب/محركات_الخدمات/اختبار/مؤشر_الفأرة/مؤشر_الفأرة.h"
-#include "القلب/محركات_الخدمات/اختبار/لوحة_المفاتيح/لوحة_المفاتيح.h"
+#include "القلب/الوحدات/وحدات_الخدمات/وحدات_الشاشة/محرك_الفيديو/بوابة_الفيديو.h"
+#include "القلب/الوحدات/وحدات_العمليات/محرك_التطبيقات/قيم_الملف.h"
+#include "القلب/اختبار/مؤشر_الفأرة/مؤشر_الفأرة.h"
+#include "القلب/الوحدات/وحدات_العمليات/محرك_التطبيقات/محرك_التطبيقات.h"
+#include "القلب/اختبار/لوحة_المفاتيح/لوحة_المفاتيح.h"
+#include "محرك_المقاطعات/الأداره_المتقدمة_للمقاطعات/مُتحكم_المقاطعات.h"
+#include "محرك_المقاطعات/أدارة_تنظيم_المقاطعات/مُدير_جدول_الواصفات_العام.h"
+#include "محرك_المقاطعات/أدارة_تنظيم_المقاطعات/مكتبة_واجهة_الإدخال_والإخراج.h"
+#include "محرك_المقاطعات/الأداره_المتقدمة_للمقاطعات/مُتحكم_وموجه_المقاطعات.h"
 #include "محرك_المقاطعات/الأداره_المتقدمة_للمقاطعات/مؤقت_تنظيم_المقاطعات/المؤقت.h"
-#include "القلب/محركات_الخدمات/framebuffer.h"
+#include "القلب/الوحدات/وحدات_الخدمات/وحدات_الشاشة/محرك_العرض/الأدارة/محرك_العرض.h"
+#include "القلب/الوحدات/وحدات_الخدمات/وحدات_الشاشة/محرك_العرض/بوابة_العرض.h"
 
-#define MULTIBOOT2_BOOTLOADER_MAGIC 0x36d76289
-#define MMIO_BASE 0xFFFF900000000000ULL
+#include "القلب/اختبار/التخزين/sata.h"
+#include "القلب/اختبار/طرفية/طرفية.h"
+#include "القلب/اختبار/التخزين/نظام_الملفات/نظام_العرب.h"
+
+#define MMIO_BASE 0x3F000000UL
 
 
 
@@ -29,38 +34,10 @@ extern void isr_mouse();
 extern volatile int need_schedule;
 
 
-void append_text(const char* str);
-void append_hex(uint64_t val);
 
 extern void init_apps();
 
 process_t* idle_p = 0;
-
-/* ================= MULTIBOOT ================= */
-
-struct multiboot2_tag {
-    uint32_t type;
-    uint32_t size;
-};
-
-struct multiboot2_tag_framebuffer {
-    uint32_t type;
-    uint32_t size;
-    uint64_t framebuffer_addr;
-    uint32_t framebuffer_pitch;
-    uint32_t framebuffer_width;
-    uint32_t framebuffer_height;
-    uint8_t  framebuffer_bpp;
-    uint8_t  framebuffer_type;
-    uint16_t reserved;
-};
-
-struct multiboot2_tag_module {
-    uint32_t type;
-    uint32_t size;
-    uint32_t mod_start;
-    uint32_t mod_end;
-};
 
 /* ================= الوسيط ================= */
 
@@ -144,18 +121,6 @@ int starts_with(const char* str, const char* prefix) {
     return 1;
 }
 
-void append_text(const char* str) {
-    int len = 0;
-    while (terminal_buffer[len]) len++;
-    int i = 0;
-    while (str[i] && len < 4094) {
-        terminal_buffer[len++] = str[i++];
-    }
-    terminal_buffer[len] = 0;
-}
-
-
-
 
 
 /* ================= ================= */
@@ -167,171 +132,209 @@ void idle() {
 }
 
 
-
-void append_hex(uint64_t val) {
-    char hex[] = "0123456789ABCDEF";
-    char buf[17];
-    for (int i = 0; i < 16; i++) {
-        buf[15 - i] = hex[val & 0xF];
-        val >>= 4;
-    }
-    buf[16] = 0;
-    append_text(buf);
-}
-
 void page_fault_handler_c(uint64_t* stack) {
     (void)stack;
 
     uint64_t addr;
     asm("mov %%cr2, %0" : "=r"(addr));
 
-    append_text("PAGE FAULT!\n");
-    append_text("Address: 0x");
-    append_hex(addr);
-    append_text("\n");
-
     while (1);
 }
 
 
-/* ================= KERNEL MAIN ================= */
 
-void kernel_main(uint64_t magic, uint64_t addr) {
+void task_entry(void)
+{
+    while (1)
+    {
+        display_api.set_background((ticks << 8) & 0x00FFFFFF);
 
-    if ((uint32_t)magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
-        while (1);
+        display_api.render();
     }
-    
-    uint8_t* ptr        = (uint8_t*)addr;
-    uint32_t total_size = *(uint32_t*)ptr;
-    ptr += 8;
+}
 
-    framebuffer_info_t fb_info;
-    int fb_found = 0;
 
+/* ================= KERNEL MAIN ================= */
+ 
+void KernelMain(boot_info_t *boot){
+    asm volatile("cli");
+ 
+    //draw_string(20, 20, "[01] KernelMain", 0x00FFFFFF);
+ 
+    gdt_init();
+    //draw_string(20, 40, "[02] GDT OK", 0x00FFFFFF);
+ 
     uint8_t* الوسيط_start = 0;
     uint32_t الوسيط_size  = 0;
-
-    while (ptr < (uint8_t*)addr + total_size) {
-        struct multiboot2_tag* tag = (struct multiboot2_tag*)ptr;
-        if (tag->type == 0) break;
-
-        if (tag->type == 8) {
-            struct multiboot2_tag_framebuffer* fb = (void*)tag;
-            fb_info.address = fb->framebuffer_addr;
-            fb_info.width   = fb->framebuffer_width;
-            fb_info.height  = fb->framebuffer_height;
-            fb_info.pitch   = fb->framebuffer_pitch;
-            fb_info.bpp     = fb->framebuffer_bpp;
-            fb_found        = 1;
-        }
-
-        if (tag->type == 3) {
-            struct multiboot2_tag_module* mod = (void*)tag;
-            الوسيط_start = (uint8_t*)(uintptr_t)mod->mod_start;
-            الوسيط_size  = mod->mod_end - mod->mod_start;
-        }
-
-        ptr += (tag->size + 7) & ~7;
-    }
-
-    if (!fb_found) {
-        while (1);
-    }
-
+ 
+    //draw_string(20, 100, "[04] Variables OK", 0x00FFFFFF);
+ 
     memory_api.init();
+    //draw_string(20, 120, "[05] Memory Init OK", 0x00FFFFFF);
+ 
+    تهيئة_الفيديو(boot);
+    display_init();
 
-    memory_api.map(MMIO_BASE + 0xFEE00000, 0xFEE00000, MEM_WRITE); // LAPIC
-    memory_api.map(MMIO_BASE + 0xFEC00000, 0xFEC00000, MEM_WRITE); // IOAPIC
-
-    uint64_t frame = memory_api.alloc_page();
-    uint64_t test_addr = 0xFFFF800000400000ULL;
-    memory_api.map(test_addr, frame, MEM_WRITE);
-    char* test_mem = (char*)test_addr;
-    *test_mem = 0x42;
-
-    video_api.init(&fb_info);
-    //video_api.clear(0x00224488);
-    video_api.swap();
-
-    if (الوسيط_start) {
-        parse_الوسيط(
-            الوسيط_start,
-            الوسيط_size
-        );
+/*
 
 
-                /*
- * تشغيل التطبيق تلقائياً
- */
+    if (sata_init() == 0)
+        {
 
-        file_t* auto_app =
-        find_file("app.ت");
+        terminal_print("yes");
 
-            if (auto_app)
+        const uint64_t test_lba = 100;
+
+        uint8_t *write_buffer = (uint8_t *)memory_api.alloc_page();
+        uint8_t *read_buffer  = (uint8_t *)memory_api.alloc_page();
+
+        for (int i = 0; i < 512; i++)
+            write_buffer[i] = (uint8_t)(i & 0xFF);
+
+        terminal_print("Calling Write");
+
+        int w = sata_write_sector(test_lba, write_buffer);
+
+        if (w == 0)
+            terminal_print("Write OK");
+        else
+            terminal_print("Write Failed");
+
+        memset(read_buffer, 0, 512);
+
+        terminal_print("Calling Read");
+
+        int r = sata_read_sector(test_lba, read_buffer);
+
+        if (r == 0)
+            terminal_print("Read OK");
+        else
+            terminal_print("Read Failed");
+
+        if (w == 0 && r == 0)
+        {
+            int match = 1;
+
+            for (int i = 0; i < 512; i++)
             {
-                app_run(auto_app);
+                if (write_buffer[i] != read_buffer[i])
+                {
+                    match = 0;
+                    break;
+                }
+            }
 
-                append_text(
-                "[APP] app_m.aros started\n"
-            );
+            if (match)
+                terminal_print("Data Verified: MATCH");
+            else
+                terminal_print("Data Verified: MISMATCH");
         }
+
+    }
         else
         {
-            append_text(
-                "[APP] app.aros not found\n"
-            );
-        }
-            
+
+        terminal_print("no");
+
+     }
+
+
+
+    terminal_print("SATA Ready");
+
+
+    if (arabfs_init() == 0)
+    {
+        terminal_print("ArabFS Init OK");
     }
-/*
-    ipc_launch_app(
-        "app.aros"
-    );
+    else
+    {
+        terminal_print("ArabFS Init Failed");
+    }
 */
+
+    //draw_string(20, 60, "[03] Video OK", 0x00FFFFFF);
+ 
+    //draw_string(20, 80, "Hello Kernel!", 0x00FFFFFF);
+ 
+    memory_api.map(MMIO_BASE + 0xFEE00000, 0xFEE00000, MEM_WRITE);
+    //draw_string(20, 140, "[06] LAPIC Map OK", 0x00FFFFFF);
+ 
+    memory_api.map(MMIO_BASE + 0xFEC00000, 0xFEC00000, MEM_WRITE);
+    //draw_string(20, 160, "[07] IOAPIC Map OK", 0x00FFFFFF);
+ 
+    uint64_t frame = memory_api.alloc_page();
+    //draw_string(20, 180, "[08] alloc_page OK", 0x00FFFFFF);
+ 
+    uint64_t test_addr = 0x3F000000UL;
+ 
+    memory_api.map(test_addr, frame, MEM_WRITE);
+    //draw_string(20, 200, "[09] Test Map OK", 0x00FFFFFF);
+ 
+    char* test_mem = (char*)test_addr;
+    *test_mem = 0x42;
+    //draw_string(20, 220, "[10] Test Write OK", 0x00FFFFFF);
+ 
     interrupt_api.init();
+    //draw_string(20, 240, "[11] IDT Init OK", 0x00FFFFFF);
+ 
     pic_disable();
-    interrupt_api.set_gate(
-        32,
-        (uint64_t)isr_timer
-    );
-    interrupt_api.set_gate(
-        33,
-        (uint64_t)isr_keyboard
-    );
-    interrupt_api.set_gate(
-        44,
-        (uint64_t)isr_mouse
-    );
-
+    //draw_string(20, 260, "[12] PIC Disabled", 0x00FFFFFF);
+ 
+    interrupt_api.set_gate(32, (uint64_t)isr_timer);
+    //draw_string(20, 280, "[13] Timer Gate OK", 0x00FFFFFF);
+ 
+    interrupt_api.set_gate(33, (uint64_t)isr_keyboard);
+    //draw_string(20, 300, "[14] Keyboard Gate OK", 0x00FFFFFF);
+ 
+    interrupt_api.set_gate(44, (uint64_t)isr_mouse);
+    //draw_string(20, 320, "[15] Mouse Gate OK", 0x00FFFFFF);
+ 
     extern void isr_page_fault();
-
-    interrupt_api.set_gate(
-        14,
-        (uint64_t)isr_page_fault
-    );
-
-
+ 
+    interrupt_api.set_gate(14, (uint64_t)isr_page_fault);
+    //draw_string(20, 340, "[16] PageFault Gate OK", 0x00FFFFFF);
+ 
     lapic_init();
+    //draw_string(20, 360, "[17] LAPIC Init OK", 0x00FFFFFF);
+ 
     ioapic_init();
+    //draw_string(20, 380, "[18] IOAPIC Init OK", 0x00FFFFFF);
+ 
     lapic_timer_init();
-
+    //draw_string(20, 400, "[19] LAPIC Timer OK", 0x00FFFFFF);
+ 
     interrupt_api.irq_register(0, timer_handler);
+    //draw_string(20, 420, "[20] Timer IRQ OK", 0x00FFFFFF);
+ 
     interrupt_api.irq_register(1, keyboard_handler);
-
+    //draw_string(20, 440, "[21] Keyboard IRQ OK", 0x00FFFFFF);
+ 
     interrupt_api.irq_register(12, mouse_handler);
-
+    //draw_string(20, 460, "[22] Mouse IRQ OK", 0x00FFFFFF);
+ 
     mouse_init();
+    //draw_string(20, 480, "[23] Mouse Init OK", 0x00FFFFFF);
+ 
     keyboard_init();
-
-    /* ── idle ── */
+    //draw_string(20, 500, "[24] Keyboard Init OK", 0x00FFFFFF);
+ 
+    //video_api.clear(0x00224488);
+    //draw_string(20, 20, "[25] Screen Cleared", 0x00FFFFFF);
+ 
     idle_p = process_api.create(idle);
-
+    //draw_string(20, 40, "[26] Idle Process OK", 0x00FFFFFF);
+ 
     asm volatile("sti");
+    //draw_string(20, 60, "[27] STI OK", 0x00FFFFFF);
+    process_t* p = process_api.create(task_entry);
+    scheduler_api.add(p);
+ 
     scheduler_api.schedule();
-
-    while (1) {
-
+    //draw_string(20, 80, "[28] Scheduler Returned", 0x00FFFFFF);
+ 
+    while (1)
+    {
         asm volatile("hlt");
     }
 }
