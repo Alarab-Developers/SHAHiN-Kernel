@@ -1,0 +1,43 @@
+#ifndef MEMORY_API_H
+#define MEMORY_API_H
+
+
+#include "القلب/المكتبات/المكتبات.h"
+
+#define MEM_PRESENT  1
+#define MEM_WRITE    2
+#define MEM_USER     4
+
+#include "الأدارة/مدير_فضاء_العناوين.h"
+
+
+
+typedef struct {
+    // Heap
+    void*   (*alloc)(size_t size);
+    void    (*free)(void* ptr);
+
+    // Paging
+    uint64_t (*alloc_page)();
+    void     (*free_page)(uint64_t);
+
+    void (*map)(uint64_t virt, uint64_t phys, uint64_t flags);
+    void (*map_to)(uint64_t* pml4, uint64_t virt, uint64_t phys, uint64_t flags);
+
+
+    void (*init)(void);
+
+    uint64_t* (*get_pml4)();
+
+    address_space_t *(*create_address_space)(void);
+    
+    void (*switch_address_space)(address_space_t *);
+
+    address_space_t *(*get_current_address_space)(void);
+
+
+} memory_api_t;
+
+extern memory_api_t memory_api;
+
+#endif
