@@ -6,18 +6,18 @@
 
 volatile uint64_t ticks = 0;
 
-void timer_init()
-{
+void timer_init(){
+
     lapic_timer_init();
 }
 
-uint64_t timer_get_ticks()
-{
+uint64_t timer_get_ticks(){
+
     return ticks;
 }
 
-void timer_handler()
-{
+void timer_handler(){
+
     ticks++;
 
     scheduler_tick();

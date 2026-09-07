@@ -18,6 +18,8 @@ typedef struct {
 
     void (*sleep)(process_t* p, int ticks);
     process_t* (*current)();
+    void (*remove_from_sleep)(process_t* p);
+
 
 } scheduler_api_t;
 

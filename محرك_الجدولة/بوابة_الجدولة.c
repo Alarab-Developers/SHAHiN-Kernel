@@ -31,6 +31,10 @@ static process_t* api_current() {
     return scheduler_current();
 }
 
+static void api_remove_from_sleep(process_t* p) {
+    scheduler_remove_from_sleep(p);
+}
+
 // ================= API =================
 
 scheduler_api_t scheduler_api = {
@@ -40,5 +44,6 @@ scheduler_api_t scheduler_api = {
     .next     = api_next,
     .schedule = api_schedule,
     .sleep    = api_sleep,
-    .current  = api_current
+    .current  = api_current,
+    .remove_from_sleep = api_remove_from_sleep
 };

@@ -16,34 +16,21 @@ typedef struct {
 
     void (*init)();
 
-    void (*set_gate)(
-        int n,
-        uint64_t handler
-    );
+    void (*set_gate)(int n, uint64_t handler);
 
     /* ===== IRQ ===== */
 
     void (*irq_init)();
 
-    void (*irq_register)(
-        uint32_t irq,
-        irq_handler_t handler
-    );
+    void (*irq_register)(uint32_t irq, irq_handler_t handler);
 
-    void (*irq_handler)(
-        uint32_t irq
-    );
+    void (*irq_handler)(uint32_t irq);
 
     /* ===== PORT IO ===== */
 
-    void (*outb)(
-        uint16_t port,
-        uint8_t value
-    );
+    void (*outb)(uint16_t port, uint8_t value);
 
-    uint8_t (*inb)(
-        uint16_t port
-    );
+    uint8_t (*inb)(uint16_t port);
 
 } interrupt_api_t;
 

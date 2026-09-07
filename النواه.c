@@ -2,6 +2,7 @@
 #include "القلب/المكتبات/انواع.h"
 #include "القلب/معلومات_المقلع.h"
 #include "محرك_الذاكرة/بوابة_الذاكرة.h"
+#include "محرك_الذاكرة/الأدارة/مدير_الاطار.h"
 #include "محرك_الجدولة/بوابة_الجدولة.h"
 #include "محرك_العمليات/بوابة_العمليات.h"
 #include "محرك_المقاطعات/بوابة_المقاطعات.h"
@@ -335,7 +336,9 @@ void KernelMain(boot_info_t *boot){
  
     uint8_t* الوسيط_start = 0;
     uint32_t الوسيط_size  = 0;
- 
+
+    frame_allocator_set_ram_size(boot->total_ram_bytes);
+
     core_init();
     تهيئة_الفيديو(boot);
     if (boot->system_archive && boot->system_archive_size)
@@ -440,7 +443,8 @@ void KernelMain(boot_info_t *boot){
     //video_api.clear(0x00224488);
     //video_api.swap();
 
-    loader_app(".\\النظام\\المشغل.تطبيق");
+    loader_app(".\\الاعدادات\\المشغل.تطبيق");
+
 
     development_screen_init();
 /*

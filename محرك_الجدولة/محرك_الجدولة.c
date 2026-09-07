@@ -59,6 +59,15 @@ void scheduler_remove(process_t* p) {
     }
 }
 
+void scheduler_remove_from_sleep(process_t* p) {
+    for (int i = 0; i < sleep_count; i++) {
+        if (sleep_list[i] == p) {
+            sleep_list[i] = sleep_list[--sleep_count];
+            return;
+        }
+    }
+}
+
 /* ================= SLEEP ================= */
 
 static void add_to_sleep(process_t* p) {

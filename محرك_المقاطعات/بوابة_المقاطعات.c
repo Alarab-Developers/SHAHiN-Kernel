@@ -11,10 +11,7 @@ static void api_init() {
     idt_init();
 }
 
-static void api_set_gate(
-    int n,
-    uint64_t handler
-) {
+static void api_set_gate(int n, uint64_t handler) {
 
     idt_set_gate(n, handler);
 }
@@ -26,17 +23,12 @@ static void api_irq_init() {
     irq_init();
 }
 
-static void api_irq_register(
-    uint32_t irq,
-    irq_handler_t handler
-) {
+static void api_irq_register(uint32_t irq, irq_handler_t handler) {
 
     irq_register(irq, handler);
 }
 
-static void api_irq_handler(
-    uint32_t irq
-) {
+static void api_irq_handler(uint32_t irq) {
 
     irq_handler(irq);
 }
@@ -44,24 +36,14 @@ static void api_irq_handler(
 
 /* ===== PORT IO ===== */
 
-static void api_outb(
-    uint16_t port,
-    uint8_t value
-)
-{
-    outb(
-        port,
-        value
-    );
+static void api_outb(uint16_t port, uint8_t value){
+
+    outb(port, value);
 }
 
-static uint8_t api_inb(
-    uint16_t port
-)
-{
-    return inb(
-        port
-    );
+static uint8_t api_inb(uint16_t port){
+
+    return inb(port);
 }
 
 /* ===== API ===== */
