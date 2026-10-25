@@ -2,8 +2,14 @@ BUILD=build
 
 KERNEL=$(BUILD)/kernel.elf
 BIN=$(BUILD)/kernel.bin
+IMAGE=شاهين.نواة
 
-# إضافة -I. لجعل المجلد الرئيسي هو جذر التضمين
+# أداة التحويل تُبنى تلقائيًا داخل مجلد البناء
+CONVERTER=$(BUILD)/ادوات/المحول
+
+# =========================
+# أعلام الترجمة
+# =========================
 CFLAGS=-ffreestanding \
        -fno-stack-protector \
        -mno-red-zone \
@@ -16,13 +22,11 @@ NASMFLAGS=-f elf64 -g
 LDFLAGS=-T ربط_الملفات.ld
 
 # =========================
-# ترتيب الربط (مهم جدًا لإقلاع النواة!)
-# نفس ترتيبك الأصلي بالضبط — النواه.o يجب أن يبقى أولًا
+# ترتيب الربط
 # =========================
 OBJS=\
 	$(BUILD)/النواه.o \
 	$(BUILD)/الجوهرة.o \
-	$(BUILD)/مدير_الوحدات.o \
 	$(BUILD)/محرك_الفيديو.o \
 	$(BUILD)/بوابة_الفيديو.o \
 	$(BUILD)/الخط.o \
@@ -50,7 +54,6 @@ OBJS=\
 	$(BUILD)/بوابة_العمليات.o \
 	$(BUILD)/محرك_العمليات.o \
 	$(BUILD)/مدير_عمليات_النواه.o \
-	$(BUILD)/محرك_تواصل_العمليات.o \
 	$(BUILD)/مُبدل_الحالة.o \
 	$(BUILD)/مُحمل_جدول_واصفات_المقاطعات.o \
 	$(BUILD)/مُدير_جدول_الواصفات_العام.o \
@@ -59,18 +62,23 @@ OBJS=\
 	$(BUILD)/لوحة_المفاتيح.o \
 	$(BUILD)/ساتا.o \
 	$(BUILD)/لغة.o \
+	$(BUILD)/مجمع_الترجمة.o \
 	$(BUILD)/المحلل.o \
-	$(BUILD)/المنفذ.o \
+	$(BUILD)/شجرة.o \
+	$(BUILD)/مترجم_اللغة.o \
+	$(BUILD)/مخزن_المتغيرات.o \
+	$(BUILD)/بوابة_التنفيذ.o \
 	$(BUILD)/سياق_اللغة.o \
 	$(BUILD)/الدوال.o \
 	$(BUILD)/الحلقات.o \
 	$(BUILD)/الشروط.o \
 	$(BUILD)/رياضيات.o \
+	$(BUILD)/الهياكل.o \
 	$(BUILD)/المتغيرات.o \
 	$(BUILD)/مكتبات_اللغة.o \
 	$(BUILD)/التعليقات.o \
 	$(BUILD)/ادوات.o \
-	$(BUILD)/اوامر_اللغة.o \
+	$(BUILD)/التصريح_بالأنواع.o \
 	$(BUILD)/نظام_العرب.o \
 	$(BUILD)/الملفات.o \
 	$(BUILD)/التعريف_العام.o \
@@ -82,36 +90,34 @@ OBJS=\
 	$(BUILD)/المجلدات.o \
 	$(BUILD)/المسارات.o \
 	$(BUILD)/محمل_التطبيقات.o \
-	$(BUILD)/الذاكرة_الخام.o \
 	$(BUILD)/شروط_لوحة_المفاتيح.o \
 	$(BUILD)/اختبار_اول.o \
-	$(BUILD)/مؤشر.o \
 	$(BUILD)/مؤشر_الفأرة.o
 
 # =========================
-# جعل make يجد الملفات المصدرية بغض النظر عن مكانها
-# (بدل كتابة المسار الكامل في كل قاعدة)
+# البحث التلقائي عن الملفات المصدرية
+# (مع استبعاد مجلد البناء ومجلد أدوات)
 # =========================
-CSRCS := $(shell find . -path './$(BUILD)' -prune -o -name '*.c' -print)
-ASRCS := $(shell find . -path './$(BUILD)' -prune -o -name '*.asm' -print)
+CSRCS := $(shell find . -path './$(BUILD)' -prune -o -path './أدوات' -prune -o -name '*.c' -print)
+ASRCS := $(shell find . -path './$(BUILD)' -prune -o -path './أدوات' -prune -o -name '*.asm' -print)
 
 vpath %.c   $(sort $(dir $(CSRCS)))
 vpath %.asm $(sort $(dir $(ASRCS)))
 
-all: $(BIN)
+all: $(IMAGE)
 
 # =========================
-# إنشاء مجلد البناء
+# إنشاء مجلدات البناء
 # =========================
-
 $(BUILD):
 	mkdir -p $(BUILD)
 
-# =========================
-# قواعد عامة للترجمة (بدل عشرات القواعد المكررة)
-# الاعتماديات على ملفات .h تُولَّد تلقائيًا عبر -MMD -MP
-# =========================
+$(BUILD)/ادوات:
+	mkdir -p $@
 
+# =========================
+# قواعد الترجمة العامة
+# =========================
 $(BUILD)/%.o: %.c | $(BUILD)
 	gcc $(CFLAGS) -c $< -o $@
 
@@ -119,9 +125,27 @@ $(BUILD)/%.o: %.asm | $(BUILD)
 	nasm $(NASMFLAGS) $< -o $@
 
 # =========================
+# بناء أداة التحويل (المحول)
+# freestanding — بدون libc، تعتمد على مكتبة النواة فقط
+# =========================
+CONVERTER_SRCS = ادوات/المحول.c القلب/المكتبات/المكتبات.c
+CONVERTER_INC  = -Iالقلب/المكتبات
+
+$(CONVERTER): $(CONVERTER_SRCS) \
+              القلب/المكتبات/المكتبات.h \
+              القلب/المكتبات/انواع.h   \
+              | $(BUILD)/ادوات
+	@echo "=== بناء أداة التحويل (freestanding) ==="
+	gcc -nostdlib -ffreestanding -fno-builtin \
+	    -fno-stack-protector -fno-pic -no-pie \
+	    -mno-red-zone -O2 -Wall -Wextra \
+	    $(CONVERTER_INC) \
+	    -o $@ $(CONVERTER_SRCS)
+	@echo "[✓] $(CONVERTER)"
+
+# =========================
 # الربط
 # =========================
-
 $(KERNEL): $(OBJS) ربط_الملفات.ld
 	@echo "=== بناء النواة ==="
 
@@ -132,19 +156,46 @@ $(KERNEL): $(OBJS) ربط_الملفات.ld
 
 	@echo "[✓] $(KERNEL)"
 
-	@echo "=== Symbols ==="
-	@nm $(KERNEL) | grep -E "KernelMain|__bss" || true
+	@echo "=== Symbols المهمة ==="
+	@nm $(KERNEL) | grep -E "KernelMain|_kernel_start|_kernel_end|_bss_start|_bss_end" || true
 
-	@KERNEL_MAIN_ADDR=$$(nm $(KERNEL) | grep " T KernelMain" | awk '{print "0x"$$1}'); \
+	@KERNEL_MAIN_ADDR=$$(nm $(KERNEL) | awk '$$3=="KernelMain" {print "0x"$$1}'); \
 	echo "[INFO] KernelMain @ $$KERNEL_MAIN_ADDR"
 
 # =========================
 # kernel.bin
 # =========================
-
 $(BIN): $(KERNEL)
 	objcopy -O binary $(KERNEL) $(BIN)
 	@echo "[✓] $(BIN) — $$(wc -c < $(BIN)) bytes"
+
+# =========================
+# شاهين.نواة — يُنتَج باستخدام المحول
+# =========================
+$(IMAGE): $(BIN) $(CONVERTER)
+	@echo "=== استخراج العناوين من $(KERNEL) ==="
+	@KERNEL_MAIN_ADDR=$$(nm $(KERNEL) | awk '$$3=="KernelMain" {print "0x"$$1}'); \
+	KERNEL_END_ADDR=$$(nm $(KERNEL)  | awk '$$3=="_kernel_end" {print "0x"$$1}'); \
+	BSS_END_ADDR=$$(nm $(KERNEL)     | awk '$$3=="_bss_end"    {print "0x"$$1}'); \
+	if [ -z "$$KERNEL_MAIN_ADDR" ] || [ -z "$$KERNEL_END_ADDR" ]; then \
+		echo "ERROR: لم أستطع استخراج KernelMain أو _kernel_end من $(KERNEL)"; \
+		exit 1; \
+	fi; \
+	echo "[INFO] KernelMain  = $$KERNEL_MAIN_ADDR"; \
+	echo "[INFO] _kernel_end = $$KERNEL_END_ADDR"; \
+	echo "[INFO] _bss_end    = $$BSS_END_ADDR"; \
+	\
+	LOAD_BASE=$$(printf "%d" 0x100000); \
+	KEND_DEC=$$(printf "%d" $$KERNEL_END_ADDR); \
+	SIZE=$$((KEND_DEC - LOAD_BASE)); \
+	echo "[INFO] image_size (قبل المحول) = $$SIZE bytes (0x$$(printf '%x' $$SIZE))"; \
+	\
+	cp -f $(BIN) kernel.bin; \
+	./$(CONVERTER) $$KERNEL_MAIN_ADDR $$KERNEL_END_ADDR; \
+	rm -f kernel.bin
+
+	@echo "[✓] $(IMAGE)"
+	@ls -la $(IMAGE)
 
 	@echo "Removing object files..."
 	@rm -f $(OBJS)
@@ -152,11 +203,55 @@ $(BIN): $(KERNEL)
 # =========================
 # تنظيف
 # =========================
-
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) $(IMAGE) kernel.bin
 
 .PHONY: all clean
 
-# اعتماديات ملفات .h المولّدة تلقائيًا
 -include $(wildcard $(BUILD)/*.d)
+
+# =========================
+# أداة arpc (تعمل على المضيف Linux — ليست للنواة)
+# =========================
+HOST_CC   = gcc
+ARPC_DIR  = ادوات
+ARPC      = $(BUILD)/arpc
+
+# ملاحظة: لا نضمّن سياق_اللغة.c — host_compat.c يوفّر بديلًا عنه
+ARPC_SRCS = \
+	$(ARPC_DIR)/arpc.c \
+	$(ARPC_DIR)/host_compat.c \
+	القلب/الوحدات/اللغة/لغة.c \
+	القلب/الوحدات/اللغة/طبقة_الترجمة/المحلل.c \
+	القلب/الوحدات/اللغة/طبقة_الترجمة/مترجم_اللغة.c \
+	القلب/الوحدات/اللغة/طبقة_الترجمة/مجمع_الترجمة.c \
+	القلب/الوحدات/اللغة/طبقة_الترجمة/شجرة.c \
+	القلب/الوحدات/اللغة/طبقة_الترجمة/مخزن_المتغيرات.c \
+	القلب/الوحدات/اللغة/طبقة_الترجمة/التصريح_بالأنواع.c \
+	القلب/الوحدات/اللغة/مفاهيم_اللغة/الدوال.c \
+	القلب/الوحدات/اللغة/مفاهيم_اللغة/المتغيرات.c \
+	القلب/الوحدات/اللغة/مفاهيم_اللغة/الهياكل.c \
+	القلب/الوحدات/اللغة/مفاهيم_اللغة/التعليقات.c \
+	القلب/الوحدات/اللغة/مفاهيم_اللغة/رياضيات.c \
+	القلب/الوحدات/اللغة/مفاهيم_اللغة/مكتبات_اللغة.c \
+	القلب/الوحدات/اللغة/مفاهيم_اللغة/الحلقات.c \
+	القلب/الوحدات/اللغة/مفاهيم_اللغة/الشروط.c \
+	القلب/الوحدات/اللغة/ادوات/ادوات.c
+
+$(ARPC): $(ARPC_SRCS) | $(BUILD)
+	@echo "=== بناء arpc (مترجم المضيف) ==="
+	$(HOST_CC) -O2 -Wall -I. -o $@ $(ARPC_SRCS)
+	@echo "[✓] $(ARPC)"
+
+# =========================
+# ترجمة التطبيقات إلى .arpe
+# =========================
+APPS_SRC  = $(wildcard *.تطبيق)
+APPS_ARPE = $(patsubst %.تطبيق,$(BUILD)/%.arpe,$(APPS_SRC))
+
+arpe: $(ARPC) $(APPS_ARPE)
+
+$(BUILD)/%.arpe: %.تطبيق $(ARPC) | $(BUILD)
+	$(ARPC) $< -o $@
+
+.PHONY: arpe

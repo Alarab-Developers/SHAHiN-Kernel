@@ -5,6 +5,15 @@
 #include "الأدارة/مدير_الاطار.h"
 #include "الأدارة/مدير_فضاء_العناوين.h"
 
+/*
+بوابة الذاكرة هي الواجهة الرئيسية التي تربط جميع مكونات النواة بشكل غير مباشر بأدارة الذاكرة
+وتكون عادة تصريحات مع استدعاءات لدوال المحرك لخدمة طلبات المكونات التي بحاجة لها لكي تعمل وتكون عادة اجزاء من المقاطعات والجدولة والعمليات 
+والمحرك يقدم تحكم مباشر في الذاكر عبر (ادارة وأنشاء وتخصيص  الصفحات والعناوين الفيزيائية وخرائط الذاكرة)
+
+*/
+
+
+
 /* ================================================================
  * pml4 الكيرنل — عنوان فيزيائي
  * يُحفظ هنا بعد paging_init لاستخدامه في api_map
@@ -187,15 +196,22 @@ int memory_raw_read64(uint64_t address, uint64_t *value)
 /* ================================================================ */
 int memory_raw_copy(uint64_t dest, uint64_t src, uint64_t size)
 {
-    if (dest == 0 || src == 0)
-        return -1;
+    if (dest == 0 || src == 0) return -1;
 
-    volatile uint8_t *d = (volatile uint8_t *)(uintptr_t)dest;
-    volatile uint8_t *s = (volatile uint8_t *)(uintptr_t)src;
-
-    for (uint64_t i = 0; i < size; i++)
-        d[i] = s[i];
-
+    /* نسخ 32-bit — آمن على MMIO */
+    uint32_t *d32 = (uint32_t *)(uintptr_t)dest;
+    uint32_t *s32 = (uint32_t *)(uintptr_t)src;
+    uint64_t count = size / 4;
+    
+    for (uint64_t i = 0; i < count; i++)
+        d32[i] = s32[i];
+    
+    /* الباقي بايت بايت */
+    uint8_t *d8 = (uint8_t *)(uintptr_t)dest;
+    uint8_t *s8 = (uint8_t *)(uintptr_t)src;
+    for (uint64_t i = count * 4; i < size; i++)
+        d8[i] = s8[i];
+    
     return 0;
 }
 

@@ -8,8 +8,8 @@
 #include "محرك_المقاطعات/بوابة_المقاطعات.h"
 #include "محرك_الجدولة/الأدارة/مُدير_الأحداث.h"
 #include "القلب/المكتبات/المكتبات.h"
-#include "محرك_تواصل_العمليات/محرك_تواصل_العمليات.h"
 #include "القلب/الوحدات/محرك_الفيديو/بوابة_الفيديو.h"
+#include "القلب/الوحدات/محرك_الفيديو/محرك_الفيديو.h"
 #include "القلب/الوحدات/محمل_التطبيقات/قيم_الملف.h"
 #include "محرك_المقاطعات/الأداره_المتقدمة_للمقاطعات/مُتحكم_المقاطعات.h"
 #include "محرك_المقاطعات/أدارة_تنظيم_المقاطعات/مُدير_جدول_الواصفات_العام.h"
@@ -19,29 +19,29 @@
 
 #include "القلب/الوحدات/التخزين/ساتا.h"
 #include "القلب/اختبار/شاشة_الخطأ/اختبار_اول.h"
-#include "القلب/الوحدات/شاشة_التطوير/شاشة_التطوير.h"
+#include "ادوات/شاشة_التطوير/شاشة_التطوير.h"
 #include "القلب/الوحدات/التخزين/نظام_الملفات/نظام_العرب.h"
 
-
 #include "القلب/الوحدات/محمل_التطبيقات/محمل_التطبيقات.h"
-
 #include "القلب/الوحدات/الشاشة_الحرجة/الشاشة_الحرجة.h"
-
-
 #include "القلب/الوحدات/اللغة/لغة.h"
-
-
-
-
-
-
-
+#include "القلب/الوحدات/اللغة/طبقة_الترجمة/مجمع_الترجمة.h"
 
 process_t* idle_p = 0;
 
-/* ================= الوسيط ================= */
+extern uint8_t _bss_start[];
+extern uint8_t _bss_end[];
 
-#define MAX_ARCHIVE_FILES 128
+static void clear_bss(void)
+{
+    uint8_t *p = _bss_start;
+    uint8_t *e = _bss_end;
+    while (p < e) *p++ = 0;
+}
+
+/* ================= Archive ================= */
+
+#define MAX_ARCHIVE_FILES 30000
 
 file_t files[MAX_ARCHIVE_FILES];
 int file_count = 0;
@@ -49,12 +49,12 @@ int file_count = 0;
 file_t* init_file = 0;
 
 
-/* الحقول الرقمية في رأس tar (ustar) مخزّنة كنص ASCII بصيغة ثمانية (octal) */
+/* tar (ustar) numeric fields are stored as ASCII octal text */
 uint32_t oct_to_uint(const char* str, int len) {
     uint32_t val = 0;
     for (int i = 0; i < len; i++) {
         char c = str[i];
-        if (c < '0' || c > '7') break; /* توقف عند مسافة/NUL في نهاية الحقل */
+        if (c < '0' || c > '7') break;
         val = (val << 3) + (uint32_t)(c - '0');
     }
     return val;
@@ -62,14 +62,13 @@ uint32_t oct_to_uint(const char* str, int len) {
 
 #define TAR_BLOCK_SIZE 512
 
-/* أوفستات رأس ustar (512 بايت لكل رأس) */
 #define TAR_OFF_NAME     0
 #define TAR_LEN_NAME     100
 #define TAR_OFF_SIZE     124
 #define TAR_LEN_SIZE     12
 #define TAR_OFF_TYPEFLAG 156
 
-void parse_الوسيط(uint8_t* start, uint32_t size)
+void parse_archive(uint8_t* start, uint32_t size)
 {
     if (!start || size < TAR_BLOCK_SIZE)
         return;
@@ -79,10 +78,6 @@ void parse_الوسيط(uint8_t* start, uint32_t size)
 
     while (p + TAR_BLOCK_SIZE <= end)
     {
-        /* ========================================================= */
-        /* التحقق من أن رأس TAR ليس فارغًا                          */
-        /* ========================================================= */
-
         int all_zero = 1;
 
         for (int i = 0; i < TAR_BLOCK_SIZE; i++)
@@ -94,142 +89,57 @@ void parse_الوسيط(uint8_t* start, uint32_t size)
             }
         }
 
-        /* رأس صفري = نهاية الأرشيف */
         if (all_zero)
             break;
 
+        char* name      = (char*)(p + TAR_OFF_NAME);
+        char typeflag   = (char)p[TAR_OFF_TYPEFLAG];
 
-        /* ========================================================= */
-        /* قراءة معلومات الملف                                      */
-        /* ========================================================= */
-
-        char* name =
-            (char*)(p + TAR_OFF_NAME);
-
-        char typeflag =
-            (char)p[TAR_OFF_TYPEFLAG];
-
-        uint32_t filesize =
-            oct_to_uint(
-                (char*)(p + TAR_OFF_SIZE),
-                TAR_LEN_SIZE
-            );
-
-
-        /* ========================================================= */
-        /* التحقق من أن حجم الملف لا يتجاوز الأرشيف                  */
-        /* ========================================================= */
+        uint32_t filesize = oct_to_uint(
+            (char*)(p + TAR_OFF_SIZE),
+            TAR_LEN_SIZE
+        );
 
         uint32_t data_blocks =
-            (filesize + TAR_BLOCK_SIZE - 1) /
-            TAR_BLOCK_SIZE;
+            (filesize + TAR_BLOCK_SIZE - 1) / TAR_BLOCK_SIZE;
+        uint32_t data_bytes = data_blocks * TAR_BLOCK_SIZE;
 
-        uint32_t data_bytes =
-            data_blocks * TAR_BLOCK_SIZE;
+        uint8_t* data = p + TAR_BLOCK_SIZE;
 
-        uint8_t* data =
-            p + TAR_BLOCK_SIZE;
-
-
-        /*
-         * التأكد من أن بداية البيانات داخل الأرشيف
-         */
         if (data > end)
             break;
-
-
-        /*
-         * التأكد من أن بيانات الملف كاملة داخل الأرشيف.
-         *
-         * نستخدم:
-         *
-         * data_bytes > (end - data)
-         *
-         * بدل:
-         *
-         * data + data_bytes > end
-         *
-         * لتجنب overflow.
-         */
         if (data_bytes > (uint32_t)(end - data))
-        {
-
             break;
-        }
 
-
-        /* ========================================================= */
-        /* ملفات عادية فقط                                          */
-        /* ========================================================= */
-
-        if (
-            (typeflag == '0' || typeflag == 0) &&
+        if ((typeflag == '0' || typeflag == 0) &&
             name[0] != 0 &&
-            file_count < MAX_ARCHIVE_FILES
-        )
+            file_count < MAX_ARCHIVE_FILES)
         {
-            file_t* f =
-                &files[file_count];
-
-
-            /* ===================================================== */
-            /* نسخ اسم الملف بأمان                                  */
-            /* ===================================================== */
+            file_t* f = &files[file_count];
 
             int i = 0;
-
-            /*
-             * مهم:
-             *
-             * لا نستخدم name[i] قبل التأكد من أن i < TAR_LEN_NAME.
-             *
-             * لأن حقل name في TAR حجمه 100 بايت فقط.
-             */
-            while (
-                i < TAR_LEN_NAME &&
-                i < (int)sizeof(f->name) - 1 &&
-                name[i] != '\0'
-            )
+            while (i < TAR_LEN_NAME &&
+                   i < (int)sizeof(f->name) - 1 &&
+                   name[i] != '\0')
             {
-                f->name[i] =
-                    name[i];
-
+                f->name[i] = name[i];
                 i++;
             }
-
             f->name[i] = '\0';
-
-
-            /* ===================================================== */
-            /* التأكد من أن الاسم ليس فارغًا بعد النسخ              */
-            /* ===================================================== */
 
             if (f->name[0] != '\0')
             {
-                f->data =
-                    data;
-
-                f->size =
-                    filesize;
-
+                f->data = data;
+                f->size = filesize;
                 file_count++;
             }
         }
 
-
-        /* ========================================================= */
-        /* الانتقال إلى رأس الملف التالي                             */
-        /* ========================================================= */
-
-        p =
-            data + data_bytes;
+        p = data + data_bytes;
     }
 }
 
-/* تعرض في الطرفية كل ما تم استخراجه من الأرشيف */
-void عرض_محتويات_الأرشيف(void) {
-
-
+void list_archive_contents(void) {
     for (int i = 0; i < file_count; i++) {
         char line[160];
         char size_str[16];
@@ -257,10 +167,6 @@ void عرض_محتويات_الأرشيف(void) {
         strcat(line, " (");
         strcat(line, size_str);
         strcat(line, " bytes)");
-
-    }
-
-    if (file_count == 0) {
     }
 }
 
@@ -274,23 +180,13 @@ file_t* find_file(const char* name) {
     return 0;
 }
 
-
 /* ================= ================= */
 
 void idle() {
-    int color = 0;
     while (1) {
-        color = (color + 1) % 0xFFFFFF;
-        video_api.clear(color);
-        video_api.swap();
-        for (volatile int i = 0; i < 5000000; i++);  /* تأخير بسيط */
         __asm__("hlt");
     }
 }
-
-
-
-
 
 void page_fault_handler_c(uint64_t* stack)
 {
@@ -301,164 +197,86 @@ void page_fault_handler_c(uint64_t* stack)
         : "=r"(addr)
     );
 
-
-    panic_page_fault(
-        addr,
-        stack
-    );
+    panic_page_fault(addr, stack);
 }
 
-
-void task_entry(void)
+/* ============================================================
+ * Print a 64-bit integer to the development screen
+ * ============================================================ */
+static void print_u64(uint64_t value)
 {
-    while (1)
+    char buf[24];
+    int i = 0;
+
+    if (value == 0)
     {
-        if (ticks == 0)
-            continue;
+        development_screen_print("0");
+        return;
+    }
 
-        /*
-         * هنا لا نرسم أي شيء.
-         * فقط نعمل swap لما هو موجود في back buffer.
-         */
-        video_api.swap();
+    while (value > 0 && i < 23)
+    {
+        buf[i++] = (char)('0' + (value % 10));
+        value /= 10;
+    }
 
-        uint64_t last = ticks;
-
-        while (ticks == last)
-            asm volatile("hlt");
+    while (i > 0)
+    {
+        i--;
+        char ch[2] = { buf[i], '\0' };
+        development_screen_print(ch);
     }
 }
 
+static void print_ram_size(uint64_t bytes)
+{
+    development_screen_print("RAM: ");
+    print_u64(bytes);
+    development_screen_print(" bytes = ");
+
+    uint64_t mib = bytes / (1024ULL * 1024ULL);
+    print_u64(mib);
+
+    development_screen_print(" MiB  (");
+    print_u64(mib / 1024);
+    development_screen_print(" GiB)");
+    development_screen_println("");
+}
 
 /* ================= KERNEL MAIN ================= */
- 
+
 void KernelMain(boot_info_t *boot){
- 
-    uint8_t* الوسيط_start = 0;
-    uint32_t الوسيط_size  = 0;
 
     frame_allocator_set_ram_size(boot->total_ram_bytes);
 
     core_init();
-    تهيئة_الفيديو(boot);
+    video_init(boot);
+    //development_screen_print("RAM: ");
+    //print_u64(boot->total_ram_bytes);
+    //development_screen_println("");
+
+    //development_screen_print("FB: ");
+    //print_u64((uint64_t)fb_get_back_buffer());
+    ///development_screen_println("");
+    //development_screen_init();   /* ← لطباعة رسائل التحميل */
+    core_memory();               /* ← قبل أي شغل ARP */
+    core_interrupt();
+
+    /* =========================================================
+     * 1) Unpack the archive
+     * ========================================================= */
     if (boot->system_archive && boot->system_archive_size)
     {
-        parse_الوسيط(
-            (uint8_t *)boot->system_archive,
-            boot->system_archive_size
-        );
+        parse_archive((uint8_t *)boot->system_archive,
+                      boot->system_archive_size);
     }
-    else
-    {
-    }
-
-    /*
-
-
-    if (sata_init() == 0)
-        {
-
-        terminal_print("yes");
-
-        const uint64_t test_lba = 100;
-
-        uint8_t *write_buffer = (uint8_t *)memory_api.alloc_page();
-        uint8_t *read_buffer  = (uint8_t *)memory_api.alloc_page();
-
-        for (int i = 0; i < 512; i++)
-            write_buffer[i] = (uint8_t)(i & 0xFF);
-
-        terminal_print("Calling Write");
-
-        int w = sata_write_sector(test_lba, write_buffer);
-
-        if (w == 0)
-            terminal_print("Write OK");
-        else
-            terminal_print("Write Failed");
-
-        memset(read_buffer, 0, 512);
-
-        terminal_print("Calling Read");
-
-        int r = sata_read_sector(test_lba, read_buffer);
-
-        if (r == 0)
-            terminal_print("Read OK");
-        else
-            terminal_print("Read Failed");
-
-        if (w == 0 && r == 0)
-        {
-            int match = 1;
-
-            for (int i = 0; i < 512; i++)
-            {
-                if (write_buffer[i] != read_buffer[i])
-                {
-                    match = 0;
-                    break;
-                }
-            }
-
-            if (match)
-                terminal_print("Data Verified: MATCH");
-            else
-                terminal_print("Data Verified: MISMATCH");
-        }
-
-    }
-        else
-        {
-
-        terminal_print("no");
-
-     }
-
-    terminal_print("SATA Ready");
-
-
-    if (arabfs_init() == 0)
-    {
-        terminal_print("ArabFS Init OK");
-    }
-    else
-    {
-        terminal_print("ArabFS Init Failed");
-    }
-    */
-
-
-
-    core_memory();
-    core_interrupt();
 
     test_erorr_main();
 
     idle_p = process_api.create(idle);
-    //scheduler_api.add(idle_p);
- 
-    process_t* p = process_api.create(task_entry);
-    scheduler_api.add(p);
-    //video_api.clear(0x00224488);
-    //video_api.swap();
 
-    loader_app(".\\الاعدادات\\المشغل.تطبيق");
-
-
-    development_screen_init();
-/*
-    development_screen_println("Kernel started");
-    development_screen_println("Initializing video..."); // للطابعة من شاشة التطوير
-    development_screen_println("Video initialized");
-    development_screen_println("Loading kernel...");
-
-    development_screen_update();
-*/
+    loader_app("الاعدادات/ابدء.تطبيق");
     core_run();
- 
-    while (1)
-    {
-        asm volatile("hlt");
-    }
+
+    while (1) asm volatile("hlt");
 }

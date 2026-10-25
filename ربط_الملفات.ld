@@ -30,8 +30,10 @@ SECTIONS
 
     .bss :
     {
+        _bss_start = .;
         *(COMMON)
         *(.bss*)
+        _bss_end = .;
     }
 
     _kernel_start = ADDR(.text);

@@ -29,7 +29,7 @@ address_space_t *address_space_create(void)
 }
 
 /* =========================================================
- * address_space_destroy  ←  تم التنفيذ الكامل
+ * address_space_destroy
  * ========================================================= */
 void address_space_destroy(address_space_t *space)
 {

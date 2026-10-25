@@ -15,18 +15,20 @@ static uint64_t bitmap_size = 0;
 extern uint64_t get_kernel_end_phys();
 
 
+uint64_t g_total_ram_bytes = 0;
 
-/* =========================================================
- * frame_allocator_set_ram_size
- *
- * تستبدل last_frame بحجم الرام الحقيقي القادم من المحمل
- * (UEFI memory map) بدل القيمة الثابتة 64MB.
- * يجب استدعاؤها قبل frame_allocator_init().
- * ========================================================= */
+void frame_allocator_set_ram_size(uint64_t total_ram_bytes)
+{
+    if (total_ram_bytes == 0)
+        return;
 
-void frame_allocator_set_ram_size(uint64_t total_ram_bytes) {
-    if (total_ram_bytes > 0)
-        last_frame = total_ram_bytes;
+    const uint64_t MAX_MAPPED = 64ULL * 1024 * 1024 * 1024;   /* 64 GB */
+
+    if (total_ram_bytes > MAX_MAPPED)
+        total_ram_bytes = MAX_MAPPED;
+
+    last_frame        = total_ram_bytes;
+    g_total_ram_bytes = total_ram_bytes;
 }
 
 /* =========================================================
@@ -55,28 +57,6 @@ void frame_allocator_init() {
      */
     bitmap_size = (total_frames + 7) / 8;
 
-    uint64_t* k_pml4 = paging_get_pml4();
-
-    /*
-     * Map bitmap memory
-     */
-    for (uint64_t offset = 0;
-         offset < bitmap_size;
-         offset += PAGE_SIZE) {
-
-        uint64_t phys = first_free_frame + offset;
-
-        map_page(
-            k_pml4,
-            phys,
-            phys,
-            PAGE_PRESENT | PAGE_WRITE
-        );
-    }
-
-    /*
-     * Virtual address للـ bitmap
-     */
     frame_bitmap =
         (uint8_t*)first_free_frame;
 
